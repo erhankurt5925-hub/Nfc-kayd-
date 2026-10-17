@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="tr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kart Yaz</title>
+<style>
+:root{--bg:#fff;--fg:#1a1d21;--mut:#5b636b;--line:#c9ced3;--box:#eef1f4;--ok:#0a7a3d;--err:#b3261e;--btn:#1f4e8c;--btnfg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#14171a;--fg:#e8eaed;--mut:#9aa3ab;--line:#3a4046;--box:#21262b;--ok:#5fd28a;--err:#ff8a80;--btn:#6aa3ec;--btnfg:#0b1a2e}}
+body{font:18px/1.4 system-ui,sans-serif;max-width:520px;margin:auto;padding:12px;background:var(--bg);color:var(--fg)}
+h3{margin:.4em 0}
+label{display:block;font-size:14px;color:var(--mut);margin-top:8px}
+input,textarea,button{width:100%;font:inherit;padding:10px;margin:4px 0;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+textarea{min-height:110px}
+button{background:var(--btn);color:var(--btnfg);border:0;font-weight:600}
+button.ikinci{background:var(--box);color:var(--fg);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--btn);outline-offset:2px}
+.rıza{display:flex;gap:10px;align-items:center;margin:10px 0}
+.rıza input{width:26px;height:26px;margin:0}
+#onizleme{background:var(--box);padding:8px;border-radius:6px;word-break:break-all;min-height:1.4em}
+#uyari{color:var(--err);min-height:1.4em;margin:6px 0}
+#durum{min-height:1.4em;margin:6px 0}
+#durum.ok{color:var(--ok)}
+details{margin-top:12px;color:var(--mut)}
+</style>
+<h3>Öğrenci kartı yaz</h3>
+
+<label for="mesaj">Veli mesajı (yapıştırın)</label>
+<textarea id="mesaj" placeholder="Velinin gönderdiği mesajı buraya yapıştırın"></textarea>
+<button id="ayikla" class="ikinci">Mesajdan alanları doldur</button>
+<div id="uyari" role="alert"></div>
+
+<label for="okul">Okul adı (bir kez yazılır, hatırlanır)</label>
+<input id="okul" autocomplete="off">
+<label for="ad">Öğrenci adı soyadı</label>
+<input id="ad" autocomplete="off">
+<label for="aa">Anne adı soyadı</label>
+<input id="aa" autocomplete="off">
+<label for="at">Anne telefonu</label>
+<input id="at" inputmode="numeric" placeholder="05XXXXXXXXX" autocomplete="off">
+<label for="ba">Baba adı soyadı</label>
+<input id="ba" autocomplete="off">
+<label for="bt">Baba telefonu</label>
+<input id="bt" inputmode="numeric" placeholder="05XXXXXXXXX" autocomplete="off">
+
+<div class="rıza">
+  <input type="checkbox" id="riza">
+  <label for="riza" style="margin:0;color:inherit">Veli yazılı onay verdi (mesajda "Evet" yazıyor veya imzalı kâğıt var)</label>
+</div>
+
+<p>Karta yazılacak metin:</p>
+<div id="onizleme"></div>
+
+<button id="yaz">Karta yaz</button>
+<button id="oku" class="ikinci">Kartı oku (kontrol)</button>
+<div id="durum" role="status"></div>
+
+<details>
+  <summary>Beklenen mesaj şablonu</summary>
+  <pre style="white-space:pre-wrap;font-size:14px">Öğrenci adı soyadı:
+Anne adı soyadı:
+Anne telefonu (05XXXXXXXXX):
+Baba adı soyadı:
+Baba telefonu (05XXXXXXXXX):
+Yukarıdaki bilgilerin NFC karta yazılmasını ... kabul ediyorum. Evet / Hayır:</pre>
+</details>
+
+<script>
+const $ = i => document.getElementById(i);
+const TR = {ş:"s",Ş:"S",ğ:"g",Ğ:"G",ı:"i",İ:"I",ö:"o",Ö:"O",ü:"u",Ü:"U",ç:"c",Ç:"C"};
+const sade = s => s.replace(/[şŞğĞıİöÖüÜçÇ]/g, c => TR[c]).replace(/\s+/g, " ").trim();
+const enc = s => new TextEncoder().encode(s).length;
+const LIMIT = 120;
+
+try { $("okul").value = localStorage.getItem("okul") || ""; } catch (e) {}
+
+function telTemizle(t) {
+  let d = (t || "").replace(/\D/g, "");
+  if (d.startsWith("90") && d.length === 12) d = d.slice(2);
+  if (d.length === 10 && d[0] === "5") d = "0" + d;
+  return d;
+}
+
+function ayikla(metin) {
+  const sonuc = {ad: "", aa: "", at: "", ba: "", bt: "", evet: null};
+  const uyarilar = [];
+  for (const satir of metin.split(/\r?\n/)) {
+    const i = satir.lastIndexOf(":");
+    if (i < 0) continue;
+    const etiket = sade(satir.slice(0, i)).toLowerCase();
+    const deger = satir.slice(i + 1).trim();
+    if (etiket.includes("kabul") || etiket.includes("evet")) {
+      const v = sade(deger).toLowerCase();
+      sonuc.evet = v.startsWith("evet") ? true : v.startsWith("hayir") ? false : null;
+    } else if (etiket.includes("ogrenci")) sonuc.ad = deger;
+    else if (etiket.includes("anne") && etiket.includes("tel")) sonuc.at = telTemizle(deger);
+    else if (etiket.includes("baba") && etiket.includes("tel")) sonuc.bt = telTemizle(deger);
+    else if (etiket.includes("anne")) sonuc.aa = deger;
+    else if (etiket.includes("baba")) sonuc.ba = deger;
+  }
+  if (!sonuc.ad) uyarilar.push("Öğrenci adı bulunamadı.");
+  if (!sonuc.at && !sonuc.bt) uyarilar.push("Hiç telefon bulunamadı.");
+  for (const k of ["at", "bt"]) {
+    if (sonuc[k] && !/^05\d{9}$/.test(sonuc[k]))
+      uyarilar.push((k === "at" ? "Anne" : "Baba") + " telefonu hatalı: " + sonuc[k]);
+  }
+  if (sonuc.evet === false) uyarilar.push("Veli HAYIR demiş. Kart yazılmamalı.");
+  if (sonuc.evet === null) uyarilar.push("Mesajda Evet/Hayır cevabı bulunamadı.");
+  return {sonuc, uyarilar};
+}
+
+function metin() {
+  const p = [sade($("ad").value), sade($("okul").value)];
+  const at = sade($("at").value), bt = sade($("bt").value);
+  if (at) p.push("Anne:" + sade($("aa").value) + " " + at);
+  if (bt) p.push("Baba:" + sade($("ba").value) + " " + bt);
+  return p.filter(Boolean).join("|");
+}
+
+function goster() {
+  const m = metin();
+  $("onizleme").textContent = m ? m + " (" + enc(m) + " byte)" : "";
+}
+document.querySelectorAll("input").forEach(i => i.addEventListener("input", goster));
+
+$("ayikla").onclick = () => {
+  const {sonuc, uyarilar} = ayikla($("mesaj").value);
+  $("ad").value = sonuc.ad; $("aa").value = sonuc.aa; $("at").value = sonuc.at;
+  $("ba").value = sonuc.ba; $("bt").value = sonuc.bt;
+  $("riza").checked = sonuc.evet === true;
+  $("uyari").textContent = uyarilar.join(" ");
+  $("durum").textContent = uyarilar.length ? "Kontrol edin, sonra yazın." : "Alanlar dolduruldu. Mesajla karşılaştırın.";
+  $("durum").className = "";
+  goster();
+};
+
+const telOk = t => t === "" || /^05\d{9}$/.test(t);
+$("yaz").onclick = async () => {
+  const d = $("durum"); d.className = "";
+  const at = sade($("at").value), bt = sade($("bt").value);
+  if (!$("ad").value.trim() || (!at && !bt)) return d.textContent = "Ad ve en az bir telefon gerekli.";
+  if (!telOk(at) || !telOk(bt)) return d.textContent = "Telefon 05XXXXXXXXX biçiminde olmalı.";
+  if (!$("riza").checked) return d.textContent = "Veli onayı işaretlenmeden yazılamaz.";
+  const m = metin();
+  if (enc(m) > LIMIT) return d.textContent = "Metin " + enc(m) + " byte, çok uzun. Kısaltın.";
+  if (!("NDEFReader" in window)) return d.textContent = "Bu tarayıcı NFC yazmayı desteklemiyor. Android Chrome kullanın.";
+  try { localStorage.setItem("okul", $("okul").value); } catch (e) {}
+  try {
+    d.textContent = "Kartı telefona yaklaştırın...";
+    await new NDEFReader().write({records: [{recordType: "text", data: m}]});
+    d.textContent = "Yazıldı. Şimdi 'Kartı oku' ile kontrol edin, sonra sıradaki öğrenci.";
+    d.className = "ok";
+    ["mesaj", "ad", "aa", "at", "ba", "bt"].forEach(i => $(i).value = "");
+    $("riza").checked = false; $("uyari").textContent = ""; goster();
+  } catch (e) { d.textContent = "Hata: " + e.message; }
+};
+
+$("oku").onclick = async () => {
+  const d = $("durum"); d.className = "";
+  if (!("NDEFReader" in window)) return d.textContent = "Bu tarayıcı NFC okumayı desteklemiyor.";
+  try {
+    const r = new NDEFReader(); await r.scan();
+    d.textContent = "Kartı yaklaştırın...";
+    r.onreading = e => {
+      const rec = e.message.records[0];
+      d.textContent = "Kartta: " + new TextDecoder(rec.encoding || "utf-8").decode(rec.data);
+      d.className = "ok";
+    };
+  } catch (e) { d.textContent = "Hata: " + e.message; }
+};
+goster();
+</script>
+</html>
