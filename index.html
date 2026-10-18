@@ -80,15 +80,28 @@ function telTemizle(t) {
   return d;
 }
 
+const fold = s => s.replace(/[şŞğĞıİöÖüÜçÇ]/g, c => TR[c]).toLowerCase();
+
+// Satırı [etiket, değer] olarak böler. İki nokta varsa ondan, yoksa bilinen etiket başlıklarından.
+function bol(satir) {
+  const i = satir.lastIndexOf(":");
+  if (i >= 0) return [satir.slice(0, i), satir.slice(i + 1).trim()];
+  const f = fold(satir);
+  if (/^\s*(evet|hayir)\s*$/.test(f)) return ["", satir.trim()];
+  const m = f.match(/^\s*(ogrenci|anne|baba)\s+(adi\s*soyadi|adi\s*soyad|ad\s*soyad|soyadi|telefonu|telefon|numarasi|tel|adi|ad|no)\b\s*/);
+  if (m) return [satir.slice(0, m[0].length), satir.slice(m[0].length).trim()];
+  return null;
+}
+
 function ayikla(metin) {
   const sonuc = {ad: "", aa: "", at: "", ba: "", bt: "", evet: null};
   const uyarilar = [];
   for (const satir of metin.split(/\r?\n/)) {
-    const i = satir.lastIndexOf(":");
-    if (i < 0) continue;
-    const etiket = sade(satir.slice(0, i)).toLowerCase();
-    const deger = satir.slice(i + 1).trim();
-    if (etiket.includes("kabul") || etiket.includes("evet")) {
+    const b = bol(satir);
+    if (!b) continue;
+    const etiket = sade(b[0]).toLowerCase();
+    const deger = b[1];
+    if (etiket.includes("kabul") || etiket.includes("evet") || etiket === "") {
       const v = sade(deger).toLowerCase();
       sonuc.evet = v.startsWith("evet") ? true : v.startsWith("hayir") ? false : null;
     } else if (etiket.includes("ogrenci")) sonuc.ad = deger;
