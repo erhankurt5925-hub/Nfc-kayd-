@@ -36,11 +36,11 @@ details{margin-top:12px;color:var(--mut)}
 <label for="aa">Anne adı soyadı</label>
 <input id="aa" autocomplete="off">
 <label for="at">Anne telefonu</label>
-<input id="at" inputmode="numeric" placeholder="05XXXXXXXXX" autocomplete="off">
+<input id="at" inputmode="numeric" autocomplete="off">
 <label for="ba">Baba adı soyadı</label>
 <input id="ba" autocomplete="off">
 <label for="bt">Baba telefonu</label>
-<input id="bt" inputmode="numeric" placeholder="05XXXXXXXXX" autocomplete="off">
+<input id="bt" inputmode="numeric" autocomplete="off">
 
 <div class="rıza">
   <input type="checkbox" id="riza">
@@ -58,9 +58,9 @@ details{margin-top:12px;color:var(--mut)}
   <summary>Beklenen mesaj şablonu</summary>
   <pre style="white-space:pre-wrap;font-size:14px">Öğrenci adı soyadı:
 Anne adı soyadı:
-Anne telefonu (05XXXXXXXXX):
+Anne telefonu:
 Baba adı soyadı:
-Baba telefonu (05XXXXXXXXX):
+Baba telefonu:
 Yukarıdaki bilgilerin NFC karta yazılmasını ... kabul ediyorum. Evet / Hayır:</pre>
 </details>
 
@@ -123,7 +123,7 @@ function ayikla(metin) {
 
 function metin() {
   const p = [sade($("ad").value), sade($("okul").value)];
-  const at = sade($("at").value), bt = sade($("bt").value);
+  const at = telTemizle($("at").value), bt = telTemizle($("bt").value);
   if (at) p.push("Anne:" + sade($("aa").value) + " " + at);
   if (bt) p.push("Baba:" + sade($("ba").value) + " " + bt);
   return p.filter(Boolean).join("|");
@@ -134,6 +134,7 @@ function goster() {
   $("onizleme").textContent = m ? m + " (" + enc(m) + " byte)" : "";
 }
 document.querySelectorAll("input").forEach(i => i.addEventListener("input", goster));
+["at", "bt"].forEach(k => $(k).addEventListener("blur", () => { $(k).value = telTemizle($(k).value); goster(); }));
 
 $("ayikla").onclick = () => {
   const {sonuc, uyarilar} = ayikla($("mesaj").value);
@@ -149,9 +150,9 @@ $("ayikla").onclick = () => {
 const telOk = t => t === "" || /^05\d{9}$/.test(t);
 $("yaz").onclick = async () => {
   const d = $("durum"); d.className = "";
-  const at = sade($("at").value), bt = sade($("bt").value);
+  const at = telTemizle($("at").value), bt = telTemizle($("bt").value);
   if (!$("ad").value.trim() || (!at && !bt)) return d.textContent = "Ad ve en az bir telefon gerekli.";
-  if (!telOk(at) || !telOk(bt)) return d.textContent = "Telefon 05XXXXXXXXX biçiminde olmalı.";
+  if (!telOk(at) || !telOk(bt)) return d.textContent = "Telefon 11 haneli olmalı (05 ile başlayan).";
   if (!$("riza").checked) return d.textContent = "Veli onayı işaretlenmeden yazılamaz.";
   const m = metin();
   if (enc(m) > LIMIT) return d.textContent = "Metin " + enc(m) + " byte, çok uzun. Kısaltın.";
